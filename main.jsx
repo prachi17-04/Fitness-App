@@ -1,2070 +1,1045 @@
-import React, {
-  useEffect,
-  useMemo,
-  useRef,
-  useState
-} from "react";
-
+import React, { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-
-import {
-  FilesetResolver,
-  PoseLandmarker,
-  DrawingUtils
-} from "@mediapipe/tasks-vision";
-
 import "./styles.css";
 
-
-/* =========================================================
-   MEDIAPIPE
-========================================================= */
-
-const MODEL =
-  "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
-
-const WASM =
-  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm";
-
-
-/* =========================================================
-   DEFAULT PROFILE
-========================================================= */
-
-const DEFAULT = {
+const DEFAULT_PROFILE = {
   goal: "Become more active",
   level: "Mostly inactive",
   time: "5 minutes",
   environment: "Hostel",
   equipment: "None",
   recent: "Inactive today",
-
   score: 67,
-  fgi: 0,
-  streak: 4,
-  xp: 0
+  fgi: 31,
+  xp: 0,
+  missionsCompleted: 0,
 };
 
+const missions = {
+  "5 minutes": {
+    title: "5-Minute Energy Reset",
+    duration: "5 min",
+    difficulty: "Easy",
+    steps: [
+      "30 sec — March in place",
+      "10 — Bodyweight squats",
+      "10 — Wall push-ups",
+      "30 sec — High knees",
+      "1 min — Walk around your room",
+      "30 sec — Shoulder mobility",
+    ],
+    xp: 50,
+  },
 
-/* =========================================================
-   MISSION ENGINE
-========================================================= */
+  "10 minutes": {
+    title: "10-Minute Strength Builder",
+    duration: "10 min",
+    difficulty: "Moderate",
+    steps: [
+      "1 min — Brisk walk",
+      "12 — Bodyweight squats",
+      "8 — Wall push-ups",
+      "20 sec — Plank",
+      "10 — Reverse lunges",
+      "1 min — Walk and recover",
+      "Repeat once",
+    ],
+    xp: 80,
+  },
 
-function mission(p) {
+  "20+ minutes": {
+    title: "20-Minute Full Body Mission",
+    duration: "20 min",
+    difficulty: "Moderate",
+    steps: [
+      "2 min — Brisk walking",
+      "15 — Squats",
+      "10 — Push-ups / wall push-ups",
+      "20 sec — Plank",
+      "10 — Lunges",
+      "2 min — Walking recovery",
+      "30 sec — High knees",
+      "2 min — Mobility cooldown",
+    ],
+    xp: 120,
+  },
+};
 
-  const t = parseInt(p.time) || 5;
-
-
-  if (p.environment === "Classroom") {
-
+function getMission(profile) {
+  if (profile.environment === "Classroom") {
     return {
-      title: `${t}-Minute Classroom Reset`,
-
-      focus: "Mobility + posture",
-
-      items: [
-        ["30 sec", "Shoulder mobility"],
-        ["30 sec", "Ankle movement"],
-        ["60 sec", "Posture reset"],
-        ["2 min", "Walk after class"]
-      ]
+      title: "Classroom Movement Reset",
+      duration: "3 min",
+      difficulty: "Easy",
+      steps: [
+        "30 sec — Shoulder mobility",
+        "10 — Seated ankle movements",
+        "10 — Seated knee extensions",
+        "30 sec — Posture reset",
+        "1 min — Walk after class",
+      ],
+      xp: 35,
     };
   }
 
-
-  if (t <= 3) {
-
+  if (profile.time === "3 minutes") {
     return {
-      title: "3-Minute Energy Reset",
-
-      focus: "Activation",
-
-      items: [
-        ["15 reps", "Bodyweight squats"],
-        ["10 reps", "Wall push-ups"],
-        ["30 sec", "High knees"],
-        ["30 sec", "Mobility"]
-      ]
+      title: "3-Minute Reset",
+      duration: "3 min",
+      difficulty: "Easy",
+      steps: [
+        "15 — Squats",
+        "10 — Wall push-ups",
+        "30 sec — High knees",
+        "30 sec — Stretching",
+      ],
+      xp: 30,
     };
   }
 
-
-  if (
-    t >= 10 &&
-    p.goal === "Build strength"
-  ) {
-
-    return {
-      title: `${t}-Minute Strength Builder`,
-
-      focus: "Strength",
-
-      items: [
-        ["12 reps", "Squats"],
-        ["10 reps", "Wall / incline push-ups"],
-        ["10 reps", "Reverse lunges"],
-        ["30 sec", "Plank"],
-        ["2 min", "Brisk walk"]
-      ]
-    };
-  }
-
-
-  return {
-
-    title: `${t}-Minute Mobility + Energy Boost`,
-
-    focus: "Mobility",
-
-    items: [
-      ["15 reps", "Bodyweight squats"],
-      ["10 reps", "Reverse lunges"],
-      ["30 sec", "Hip mobility"],
-      ["60 sec", "March in place"],
-      ["2 min", "Brisk walk"]
-    ]
-
-  };
-
+  return missions[profile.time] || missions["5 minutes"];
 }
 
-
-/* =========================================================
-   MAIN APP
-========================================================= */
-
 function App() {
-
-  const [p, setP] = useState(() => {
-
-    const saved =
-      JSON.parse(
-        localStorage.getItem("athlora") || "{}"
-      );
-
-    return {
-      ...DEFAULT,
-      ...saved
-    };
-
+  const [profile, setProfile] = useState(() => {
+    try {
+      const saved = localStorage.getItem("athlora-profile");
+      return saved ? JSON.parse(saved) : DEFAULT_PROFILE;
+    } catch {
+      return DEFAULT_PROFILE;
+    }
   });
 
+  const [page, setPage] = useState("dashboard");
 
-  const [setup, setSetup] = useState(p);
+  const currentMission = useMemo(
+    () => getMission(profile),
+    [profile]
+  );
 
-  const [page, setPage] =
-    useState("dashboard");
+  function updateProfile(key, value) {
+    const updated = {
+      ...profile,
+      [key]: value,
+    };
 
+    setProfile(updated);
+    localStorage.setItem("athlora-profile", JSON.stringify(updated));
+  }
 
-  const m =
-    useMemo(
-      () => mission(p),
-      [p]
-    );
+  function completeMission() {
+    const updated = {
+      ...profile,
+      xp: profile.xp + currentMission.xp,
+      missionsCompleted: profile.missionsCompleted + 1,
+      fgi: Math.min(100, profile.fgi + 2),
+    };
 
-
-  useEffect(() => {
-
-    localStorage.setItem(
-      "athlora",
-      JSON.stringify(p)
-    );
-
-  }, [p]);
-
-
-  const save = () => {
-
-    setP({
-      ...setup
-    });
-
-    setPage("baseline");
-
-  };
-
-
-  const baseline = () => {
-
-    setP(x => ({
-      ...x,
-      score: 67
-    }));
-
-    setPage("passport");
-
-  };
-
-
-  const done = () => {
-
-    setP(x => ({
-      ...x,
-
-      xp: x.xp + 80,
-
-      fgi: x.fgi + 2,
-
-      streak: Math.min(x.streak + 1, 7)
-
-    }));
-
+    setProfile(updated);
+    localStorage.setItem("athlora-profile", JSON.stringify(updated));
     setPage("complete");
-
-  };
-
+  }
 
   return (
-
-    <div className="app">
-
-      {/* =================================================
-          TOP HEADER
-      ================================================= */}
-
+    <div className="app-shell">
       <header className="top-header">
+        <div className="brand">
+          <div className="brand-mark">A</div>
 
-        <div>
-
-          <div className="brand">
-
-            ATHLORA
-            <span>.</span>
-
+          <div>
+            <div className="brand-name">ATHLORA</div>
+            <div className="brand-subtitle">
+              THE ANTI-SEDENTARY ENGINE
+            </div>
           </div>
-
-          <small>
-            Fitness Made Easy
-          </small>
-
         </div>
-
-
-        <div className="header-status">
-
-          <span className="online-dot"></span>
-
-          ATHLORA FIT
-
-        </div>
-
       </header>
 
-
-      {/* =================================================
-          MAIN CONTENT
-      ================================================= */}
-
       <main className="main-content">
-
-
         {page === "dashboard" && (
-
           <Dashboard
-            p={p}
-            m={m}
-            go={setPage}
+            profile={profile}
+            mission={currentMission}
+            onStart={() => setPage("mission")}
+            onSetup={() => setPage("setup")}
           />
-
         )}
-
 
         {page === "setup" && (
-
           <Setup
-            s={setup}
-            set={setSetup}
-            save={save}
+            profile={profile}
+            updateProfile={updateProfile}
+            onBack={() => setPage("dashboard")}
           />
-
         )}
-
 
         {page === "baseline" && (
-
           <Baseline
-            done={baseline}
+            profile={profile}
+            onBack={() => setPage("dashboard")}
           />
-
         )}
-
 
         {page === "passport" && (
-
           <Passport
-            p={p}
-            go={setPage}
+            profile={profile}
+            onBack={() => setPage("dashboard")}
           />
-
         )}
-
 
         {page === "mission" && (
-
           <Mission
-            p={p}
-            m={m}
-            go={setPage}
+            profile={profile}
+            mission={currentMission}
+            onComplete={completeMission}
+            onVerify={() => setPage("verify")}
           />
-
         )}
-
 
         {page === "verify" && (
-
-          <Verifier
-            done={done}
+          <Verify
+            onComplete={completeMission}
+            onBack={() => setPage("mission")}
           />
-
         )}
-
 
         {page === "complete" && (
-
           <Complete
-            p={p}
-            go={setPage}
+            profile={profile}
+            mission={currentMission}
+            onDashboard={() => setPage("dashboard")}
+            onMission={() => setPage("mission")}
           />
-
         )}
-
 
         {page === "campus" && (
-
-          <Campus />
-
+          <Campus
+            onBack={() => setPage("dashboard")}
+          />
         )}
-
-
-        <footer>
-
-          ATHLORA-Fitness Becomes a Daily Behaviour, Not a Scheduled Workout
-          
-
-        </footer>
-
       </main>
-
-
-      {/* =================================================
-          BOTTOM NAVIGATION
-      ================================================= */}
 
       <BottomNavigation
         page={page}
         setPage={setPage}
       />
-
     </div>
-
   );
-
 }
 
+/* =========================
+   DASHBOARD
+========================= */
 
-/* =========================================================
-   BOTTOM NAVIGATION
-========================================================= */
+function Dashboard({
+  profile,
+  mission,
+  onStart,
+  onSetup,
+}) {
+  return (
+    <div className="page">
+      <section className="dashboard-intro">
+        <div>
+          <span className="eyebrow">YOUR DAILY ENGINE</span>
+
+          <h1>
+            Fitness that fits
+            <br />
+            <span>your actual day.</span>
+          </h1>
+
+          <p>
+            ATHLORA finds small opportunities to move instead
+            of waiting for you to schedule a workout.
+          </p>
+        </div>
+
+        <div className="profile-badge">
+          <span>FITNESS</span>
+          <strong>{profile.score}</strong>
+        </div>
+      </section>
+
+      <section className="context-card">
+        <div className="section-label">
+          <span className="live-dot"></span>
+          CONTEXT-AWARE FITNESS
+        </div>
+
+        <div className="context-grid">
+          <div>
+            <small>TIME AVAILABLE</small>
+            <strong>{profile.time}</strong>
+          </div>
+
+          <div>
+            <small>ENVIRONMENT</small>
+            <strong>{profile.environment}</strong>
+          </div>
+
+          <div>
+            <small>FITNESS LEVEL</small>
+            <strong>{profile.level}</strong>
+          </div>
+
+          <div>
+            <small>GOAL</small>
+            <strong>{profile.goal}</strong>
+          </div>
+        </div>
+
+        <button
+          className="secondary-button"
+          onClick={onSetup}
+        >
+          Adjust My Context →
+        </button>
+      </section>
+
+      <section className="mission-card">
+        <div className="mission-top">
+          <div>
+            <span className="eyebrow">LIVE MISSION</span>
+
+            <h2>{mission.title}</h2>
+
+            <p>
+              Generated around your current time,
+              environment and activity level.
+            </p>
+          </div>
+
+          <div className="mission-time">
+            <strong>{mission.duration}</strong>
+            <span>{mission.difficulty}</span>
+          </div>
+        </div>
+
+        <div className="mission-preview">
+          {mission.steps.slice(0, 4).map((step, index) => (
+            <div className="mission-step" key={index}>
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <p>{step}</p>
+            </div>
+          ))}
+        </div>
+
+        <button
+          className="primary-button"
+          onClick={onStart}
+        >
+          Start Move Mission →
+        </button>
+      </section>
+
+      <section className="stats-grid">
+        <div className="stat-card">
+          <span>FITNESS GROWTH</span>
+          <strong>+{profile.fgi}%</strong>
+          <small>Improvement index</small>
+        </div>
+
+        <div className="stat-card">
+          <span>MISSION XP</span>
+          <strong>{profile.xp}</strong>
+          <small>Total earned</small>
+        </div>
+
+        <div className="stat-card">
+          <span>MISSIONS</span>
+          <strong>{profile.missionsCompleted}</strong>
+          <small>Completed</small>
+        </div>
+      </section>
+
+      <section className="innovation-callout">
+        <div className="callout-icon">✦</div>
+
+        <div>
+          <span>ATHLORA DIFFERENCE</span>
+          <h3>
+            We don't ask, "How fit are you?"
+          </h3>
+          <p>
+            We ask, "How much are you improving?"
+          </p>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* =========================
+   SETUP
+========================= */
+
+function Setup({
+  profile,
+  updateProfile,
+  onBack,
+}) {
+  return (
+    <div className="page">
+      <PageHeading
+        eyebrow="MY SETUP"
+        title="Tell ATHLORA about your day."
+        description="This context helps the Opportunity Engine generate realistic Move Missions."
+      />
+
+      <div className="setup-grid">
+        <OptionGroup
+          title="What's your goal?"
+          value={profile.goal}
+          options={[
+            "Become more active",
+            "Build strength",
+            "Improve mobility",
+            "Improve stamina",
+          ]}
+          onChange={(value) => updateProfile("goal", value)}
+        />
+
+        <OptionGroup
+          title="Current activity level"
+          value={profile.level}
+          options={[
+            "Mostly inactive",
+            "Lightly active",
+            "Moderately active",
+            "Very active",
+          ]}
+          onChange={(value) => updateProfile("level", value)}
+        />
+
+        <OptionGroup
+          title="Time available"
+          value={profile.time}
+          options={[
+            "3 minutes",
+            "5 minutes",
+            "10 minutes",
+            "20+ minutes",
+          ]}
+          onChange={(value) => updateProfile("time", value)}
+        />
+
+        <OptionGroup
+          title="Where are you?"
+          value={profile.environment}
+          options={[
+            "Hostel",
+            "Room / Home",
+            "Classroom",
+            "Campus",
+            "Gym",
+          ]}
+          onChange={(value) =>
+            updateProfile("environment", value)
+          }
+        />
+
+        <OptionGroup
+          title="Equipment available"
+          value={profile.equipment}
+          options={[
+            "None",
+            "Chair",
+            "Mat",
+            "Dumbbells",
+          ]}
+          onChange={(value) =>
+            updateProfile("equipment", value)
+          }
+        />
+
+        <OptionGroup
+          title="Recent activity"
+          value={profile.recent}
+          options={[
+            "Inactive today",
+            "Active today",
+            "Inactive for 2+ days",
+            "Regularly active",
+          ]}
+          onChange={(value) =>
+            updateProfile("recent", value)
+          }
+        />
+      </div>
+
+      <button
+        className="primary-button"
+        onClick={onBack}
+      >
+        Save My Context →
+      </button>
+    </div>
+  );
+}
+
+/* =========================
+   BASELINE
+========================= */
+
+function Baseline({
+  profile,
+  onBack,
+}) {
+  const tests = [
+    {
+      title: "Squat Assessment",
+      text: "Check lower-body movement and stability.",
+    },
+    {
+      title: "Push-up Assessment",
+      text: "Measure upper-body strength capability.",
+    },
+    {
+      title: "Plank Assessment",
+      text: "Estimate core endurance.",
+    },
+    {
+      title: "Jumping Jack Assessment",
+      text: "Observe coordination and activity capacity.",
+    },
+    {
+      title: "Mobility Assessment",
+      text: "Check basic range of movement.",
+    },
+  ];
+
+  return (
+    <div className="page">
+      <PageHeading
+        eyebrow="AI BASELINE"
+        title="Understand your starting point."
+        description="Computer vision can create an initial fitness profile from simple movement tests."
+      />
+
+      <div className="baseline-score">
+        <div>
+          <span>CURRENT FITNESS PROFILE</span>
+          <strong>{profile.score}</strong>
+        </div>
+
+        <div className="score-ring">
+          {profile.score}
+        </div>
+      </div>
+
+      <div className="test-list">
+        {tests.map((test, index) => (
+          <div className="test-card" key={test.title}>
+            <div className="test-number">
+              0{index + 1}
+            </div>
+
+            <div>
+              <h3>{test.title}</h3>
+              <p>{test.text}</p>
+            </div>
+
+            <button>Test →</button>
+          </div>
+        ))}
+      </div>
+
+      <button
+        className="secondary-button full-width"
+        onClick={onBack}
+      >
+        Back to Dashboard
+      </button>
+    </div>
+  );
+}
+
+/* =========================
+   PASSPORT
+========================= */
+
+function Passport({
+  profile,
+  onBack,
+}) {
+  return (
+    <div className="page">
+      <PageHeading
+        eyebrow="FITNESS PASSPORT"
+        title="Your improvement profile."
+        description="ATHLORA focuses on personal growth instead of comparing you with athletes."
+      />
+
+      <section className="passport-hero">
+        <span>FITNESS GROWTH INDEX</span>
+
+        <strong>+{profile.fgi}%</strong>
+
+        <p>
+          Your progress is measured against your own
+          previous performance.
+        </p>
+      </section>
+
+      <div className="passport-grid">
+        <div className="passport-stat">
+          <span>FITNESS SCORE</span>
+          <strong>{profile.score}</strong>
+        </div>
+
+        <div className="passport-stat">
+          <span>MISSIONS</span>
+          <strong>{profile.missionsCompleted}</strong>
+        </div>
+
+        <div className="passport-stat">
+          <span>XP EARNED</span>
+          <strong>{profile.xp}</strong>
+        </div>
+
+        <div className="passport-stat">
+          <span>GROWTH</span>
+          <strong>+{profile.fgi}%</strong>
+        </div>
+      </div>
+
+      <div className="growth-message">
+        <span>WHY FGI?</span>
+
+        <h3>
+          Improvement matters more than starting ability.
+        </h3>
+
+        <p>
+          A beginner improving from 8 push-ups to 12
+          has meaningful growth, even if another student
+          can already do 40.
+        </p>
+      </div>
+
+      <button
+        className="secondary-button full-width"
+        onClick={onBack}
+      >
+        Back to Dashboard
+      </button>
+    </div>
+  );
+}
+
+/* =========================
+   MISSION
+========================= */
+
+function Mission({
+  mission,
+  onComplete,
+  onVerify,
+}) {
+  return (
+    <div className="page">
+      <PageHeading
+        eyebrow="MOVE MISSION"
+        title={mission.title}
+        description="A small achievable activity generated around your current context."
+      />
+
+      <section className="active-mission">
+        <div className="active-mission-header">
+          <div>
+            <span>DURATION</span>
+            <strong>{mission.duration}</strong>
+          </div>
+
+          <div>
+            <span>DIFFICULTY</span>
+            <strong>{mission.difficulty}</strong>
+          </div>
+
+          <div>
+            <span>REWARD</span>
+            <strong>+{mission.xp} XP</strong>
+          </div>
+        </div>
+
+        <div className="full-step-list">
+          {mission.steps.map((step, index) => (
+            <div
+              className="full-step"
+              key={index}
+            >
+              <span>{index + 1}</span>
+              <p>{step}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mission-actions">
+          <button
+            className="primary-button"
+            onClick={onVerify}
+          >
+            Verify My Movement →
+          </button>
+
+          <button
+            className="secondary-button"
+            onClick={onComplete}
+          >
+            Complete Demo Mission
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* =========================
+   VERIFY
+========================= */
+
+function Verify({
+  onComplete,
+  onBack,
+}) {
+  const [reps, setReps] = useState(0);
+  const [cameraOn, setCameraOn] = useState(false);
+
+  function startCamera() {
+    setCameraOn(true);
+  }
+
+  return (
+    <div className="page">
+      <PageHeading
+        eyebrow="AI VERIFICATION"
+        title="Prove the movement."
+        description="The prototype can use computer vision to verify exercise form and repetitions."
+      />
+
+      <div className="camera-card">
+        {cameraOn ? (
+          <div className="camera-placeholder">
+            <div className="camera-grid"></div>
+
+            <div className="camera-person">
+              ◯
+              <br />
+              /|\
+              <br />
+              / \
+            </div>
+
+            <span>POSE DETECTION ACTIVE</span>
+          </div>
+        ) : (
+          <div className="camera-off">
+            <div className="camera-icon">◉</div>
+
+            <h3>Camera Verification</h3>
+
+            <p>
+              Allow camera access to demonstrate
+              real-time movement verification.
+            </p>
+
+            <button
+              className="primary-button"
+              onClick={startCamera}
+            >
+              Start Camera
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="verification-stats">
+        <div>
+          <span>REPS VERIFIED</span>
+          <strong>{reps}</strong>
+        </div>
+
+        <div>
+          <span>FORM STATUS</span>
+          <strong>
+            {cameraOn ? "Tracking" : "Waiting"}
+          </strong>
+        </div>
+      </div>
+
+      <div className="demo-controls">
+        <button
+          className="secondary-button"
+          onClick={() => setReps((value) => value + 1)}
+        >
+          + Add Verified Rep
+        </button>
+
+        <button
+          className="primary-button"
+          onClick={onComplete}
+        >
+          Finish Mission →
+        </button>
+      </div>
+
+      <button
+        className="text-button"
+        onClick={onBack}
+      >
+        ← Back to Mission
+      </button>
+    </div>
+  );
+}
+
+/* =========================
+   COMPLETE
+========================= */
+
+function Complete({
+  profile,
+  mission,
+  onDashboard,
+  onMission,
+}) {
+  return (
+    <div className="page completion-page">
+      <div className="success-icon">✓</div>
+
+      <span className="eyebrow">MISSION COMPLETE</span>
+
+      <h1>
+        You created
+        <br />
+        <span>active time.</span>
+      </h1>
+
+      <p>
+        That's the ATHLORA loop:
+        <br />
+        Find an opportunity → Move → Verify → Improve.
+      </p>
+
+      <div className="reward-card">
+        <div>
+          <span>XP EARNED</span>
+          <strong>+{mission.xp}</strong>
+        </div>
+
+        <div>
+          <span>FITNESS GROWTH</span>
+          <strong>+{profile.fgi}%</strong>
+        </div>
+
+        <div>
+          <span>TOTAL MISSIONS</span>
+          <strong>{profile.missionsCompleted}</strong>
+        </div>
+      </div>
+
+      <div className="completion-actions">
+        <button
+          className="primary-button"
+          onClick={onDashboard}
+        >
+          Return to Dashboard
+        </button>
+
+        <button
+          className="secondary-button"
+          onClick={onMission}
+        >
+          Do Another Mission
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* =========================
+   CAMPUS
+========================= */
+
+function Campus({
+  onBack,
+}) {
+  return (
+    <div className="page">
+      <PageHeading
+        eyebrow="CAMPUS CHALLENGE"
+        title="Make movement social."
+        description="A campus-wide layer can turn individual activity into collective participation."
+      />
+
+      <section className="campus-hero">
+        <div>
+          <span>THIS WEEK</span>
+          <h2>Move More Campus</h2>
+          <p>
+            Students contribute movement XP to their
+            campus challenge.
+          </p>
+        </div>
+
+        <strong>12,480 XP</strong>
+      </section>
+
+      <div className="campus-list">
+        <div>
+          <span>01</span>
+          <strong>Computer Science</strong>
+          <b>4,280 XP</b>
+        </div>
+
+        <div>
+          <span>02</span>
+          <strong>Data Science</strong>
+          <b>3,940 XP</b>
+        </div>
+
+        <div>
+          <span>03</span>
+          <strong>Engineering</strong>
+          <b>2,810 XP</b>
+        </div>
+      </div>
+
+      <button
+        className="secondary-button full-width"
+        onClick={onBack}
+      >
+        Back to Dashboard
+      </button>
+    </div>
+  );
+}
+
+/* =========================
+   COMPONENTS
+========================= */
+
+function PageHeading({
+  eyebrow,
+  title,
+  description,
+}) {
+  return (
+    <div className="page-heading">
+      <span className="eyebrow">{eyebrow}</span>
+
+      <h1>{title}</h1>
+
+      <p>{description}</p>
+    </div>
+  );
+}
+
+function OptionGroup({
+  title,
+  value,
+  options,
+  onChange,
+}) {
+  return (
+    <div className="option-group">
+      <h3>{title}</h3>
+
+      <div className="option-list">
+        {options.map((option) => (
+          <button
+            key={option}
+            className={
+              value === option
+                ? "option selected"
+                : "option"
+            }
+            onClick={() => onChange(option)}
+          >
+            <span>{option}</span>
+
+            {value === option && (
+              <span className="option-check">
+                ✓
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function BottomNavigation({
   page,
-  setPage
+  setPage,
 }) {
-
   const items = [
-
     {
       id: "dashboard",
       icon: "⌂",
-      label: "Dashboard"
+      label: "Dashboard",
     },
-
     {
       id: "setup",
-      icon: "◉",
-      label: "My Setup"
+      icon: "⚙",
+      label: "My Setup",
     },
-
     {
       id: "baseline",
-      icon: "◌",
-      label: "AI Baseline"
+      icon: "◎",
+      label: "AI Baseline",
     },
-
     {
       id: "passport",
-      icon: "◎",
-      label: "Passport"
+      icon: "◈",
+      label: "Passport",
     },
-
     {
       id: "mission",
       icon: "⚡",
-      label: "Mission"
+      label: "Mission",
     },
-
     {
       id: "verify",
-      icon: "◈",
-      label: "Verify"
+      icon: "◉",
+      label: "Verify",
     },
-
     {
       id: "campus",
-      icon: "♧",
-      label: "Campus"
-    }
-
+      icon: "♙",
+      label: "Campus",
+    },
   ];
 
-
   return (
-
-    <nav className="bottom-nav">
-
-      <div className="bottom-nav-inner">
-
-        {items.map(item => (
-
-          <button
-
-            key={item.id}
-
-            className={
-              page === item.id
-                ? "bottom-item active"
-                : "bottom-item"
-            }
-
-            onClick={() =>
-              setPage(item.id)
-            }
-
-          >
-
-            <span className="bottom-icon">
-
-              {item.icon}
-
-            </span>
-
-
-            <span className="bottom-label">
-
-              {item.label}
-
-            </span>
-
-          </button>
-
-        ))}
-
-      </div>
-
-    </nav>
-
-  );
-
-}
-
-
-/* =========================================================
-   DASHBOARD
-========================================================= */
-
-function Dashboard({
-  p,
-  m,
-  go
-}) {
-
-  const consistency =
-    Math.min(p.streak, 7);
-
-  const consistencyPercent =
-    (consistency / 7) * 100;
-
-
-  return (
-
-    <section className="dashboard">
-
-
-      {/* =================================================
-          TODAY'S CONSISTENCY
-          ONLY EXISTS ON DASHBOARD
-      ================================================= */}
-
-      <section className="consistency-card">
-
-        <div className="consistency-header">
-
-          <div>
-
-            <small>
-              TODAY'S CONSISTENCY
-            </small>
-
-            <h2>
-              {consistency} / 7
-            </h2>
-
-            <p>
-              active days this week
-            </p>
-
-          </div>
-
-
-          <div className="consistency-icon">
-
-            {consistency >= 5
-              ? "🔥"
-              : "⚡"}
-
-          </div>
-
-        </div>
-
-
-        <div className="consistency-bar">
-
-          <div
-            style={{
-              width:
-                `${consistencyPercent}%`
-            }}
-          />
-
-        </div>
-
-
-        <div className="consistency-days">
-
-          {[
-            "M",
-            "T",
-            "W",
-            "T",
-            "F",
-            "S",
-            "S"
-          ].map((day, index) => (
-
-            <div
-              className={
-                index < consistency
-                  ? "day active"
-                  : "day"
-              }
-              key={`${day}-${index}`}
-            >
-
-              <span>
-                {index < consistency
-                  ? "✓"
-                  : ""}
-              </span>
-
-              <small>
-                {day}
-              </small>
-
-            </div>
-
-          ))}
-
-        </div>
-
-      </section>
-
-
-      {/* =================================================
-          CONTEXT + LIVE MISSION
-      ================================================= */}
-
-      <div className="hero">
-
-        <section className="card context-card">
-
-          <small>
-            CONTEXT-AWARE FITNESS
-          </small>
-
-
-          <h2>
-            Fitness that fits
-            into a student's day.
-          </h2>
-
-
-          <p>
-
-            ATHLORA uses
-
-            <b>
-              fitness level +
-              available time +
-              environment +
-              recent activity
-            </b>
-
-            to turn a real-life
-            constraint into a practical
-            Move Mission.
-
-          </p>
-
-
-          <div className="button-group">
-
-            <Btn
-              onClick={() =>
-                go("setup")
-              }
-            >
-
-              Build My Fitness Profile →
-
-            </Btn>
-
-
-            <Btn
-
-              secondary
-
-              onClick={() =>
-                go("mission")
-              }
-
-            >
-
-              I Have 5 Minutes
-
-            </Btn>
-
-          </div>
-
-        </section>
-
-
-        <section className="card mission">
-
-          <em>
-            ⚡ LIVE MISSION
-          </em>
-
-
-          <h3>
-            {m.title}
-          </h3>
-
-
-          <p>
-
-            Designed for
-
-            {" "}
-
-            {p.level.toLowerCase()}
-
-            {" • "}
-
-            {p.environment}
-
-            {" • "}
-
-            {p.equipment}
-
-            {" "}equipment.
-
-          </p>
-
-
-          {m.items
-            .slice(0, 3)
-            .map(x => (
-
-              <div
-                className="row"
-                key={x[1]}
-              >
-
-                <span>
-
-                  {x[0]}
-                  {" • "}
-                  {x[1]}
-
-                </span>
-
-                <b>
-                  READY
-                </b>
-
-              </div>
-
-            ))}
-
-
-          <Btn
-            onClick={() =>
-              go("verify")
-            }
-          >
-
-            Try AI Verification →
-
-          </Btn>
-
-        </section>
-
-      </div>
-
-
-      {/* =================================================
-          DASHBOARD STATS
-      ================================================= */}
-
-      <div className="stats">
-
-        <Stat
-          a="Fitness Score"
-          b={p.score}
-          c="starting profile"
-        />
-
-
-        <Stat
-          a="Fitness Growth Index"
-          b={`+${p.fgi || 31}%`}
-          c="personal improvement"
-        />
-
-
-        <Stat
-          a="XP"
-          b={p.xp}
-          c="earned through movement"
-        />
-
-      </div>
-
-
-      {/* =================================================
-          CORE IDEA
-      ================================================= */}
-
-      <div className="callout">
-
-        <b>
-          Core idea:
-        </b>
-
-        {" "}
-
-        don't ask a student to
-        find a workout.
-
-        Ask for the constraint—
-
-        <b>
-          time, place, ability
-        </b>
-
-        —and generate the movement
-        around it.
-
-      </div>
-
-    </section>
-
-  );
-
-}
-
-
-/* =========================================================
-   BUTTON
-========================================================= */
-
-function Btn({
-  children,
-  onClick,
-  secondary = false
-}) {
-
-  return (
-
-    <button
-
-      className={
-        secondary
-          ? "secondary"
-          : "primary"
-      }
-
-      onClick={onClick}
-
-    >
-
-      {children}
-
-    </button>
-
-  );
-
-}
-
-
-/* =========================================================
-   STAT
-========================================================= */
-
-function Stat({
-  a,
-  b,
-  c
-}) {
-
-  return (
-
-    <section className="card stat">
-
-      <small>
-        {a}
-      </small>
-
-
-      <strong>
-        {b}
-      </strong>
-
-
-      <span>
-        {c}
-      </span>
-
-    </section>
-
-  );
-
-}
-
-
-/* =========================================================
-   SETUP
-========================================================= */
-
-function Setup({
-  s,
-  set,
-  save
-}) {
-
-  const data = {
-
-    goal: [
-      "Become more active",
-      "Build strength",
-      "Improve endurance",
-      "Mobility & flexibility"
-    ],
-
-    level: [
-      "Mostly inactive",
-      "Occasionally active",
-      "Regularly active",
-      "Very active"
-    ],
-
-    time: [
-      "3 minutes",
-      "5 minutes",
-      "10 minutes",
-      "20+ minutes"
-    ],
-
-    environment: [
-      "Room / Home",
-      "Classroom",
-      "Hostel",
-      "Campus / Outdoors"
-    ],
-
-    equipment: [
-      "None",
-      "Chair",
-      "Stairs",
-      "Resistance band",
-      "Dumbbells"
-    ],
-
-    recent: [
-      "Inactive today",
-      "Active today",
-      "Active yesterday",
-      "Returning after 3+ days"
-    ]
-
-  };
-
-
-  return (
-
-    <section className="card">
-
-      <small>
-        PERSONALIZATION
-      </small>
-
-
-      <h2>
-        Let's make fitness
-        fit your life.
-      </h2>
-
-
-      <p>
-
-        No sport selection is required.
-        Sports can be an optional
-        training goal later.
-
-      </p>
-
-
-      {Object.entries(data)
-        .map(
-          ([key, values], index) => (
-
-            <div
-              className="setup"
-              key={key}
-            >
-
-              <h3>
-
-                {index + 1}.
-
-                {" "}
-
-                {key
-                  .charAt(0)
-                  .toUpperCase() +
-                  key.slice(1)}
-
-              </h3>
-
-
-              <div className="options">
-
-                {values.map(value => (
-
-                  <button
-
-                    className={
-                      s[key] === value
-                        ? "selected"
-                        : ""
-                    }
-
-                    onClick={() =>
-                      set({
-                        ...s,
-                        [key]: value
-                      })
-                    }
-
-                    key={value}
-
-                  >
-
-                    {value}
-
-                  </button>
-
-                ))}
-
-              </div>
-
-            </div>
-
-          )
-        )}
-
-
-      <Btn onClick={save}>
-
-        Continue to AI Baseline →
-
-      </Btn>
-
-    </section>
-
-  );
-
-}
-
-
-/* =========================================================
-   BASELINE
-========================================================= */
-
-function Baseline({
-  done
-}) {
-
-  const tests = [
-
-    ["01", "Squats", "10 reps"],
-
-    ["02", "Push-ups", "8 reps"],
-
-    ["03", "Plank", "42 sec"],
-
-    ["04", "Jumping Jacks", "30 sec"],
-
-    ["05", "Mobility", "guided"]
-
-  ];
-
-
-  return (
-
-    <section className="card">
-
-      <small>
-        AI FITNESS BASELINE • 5 MINUTES
-      </small>
-
-
-      <h2>
-        Measure first.
-        Improve intelligently.
-      </h2>
-
-
-      <p>
-
-        A short baseline creates
-        the student's starting profile.
-
-        The camera module can later
-        collect these values automatically.
-
-      </p>
-
-
-      <div className="tests">
-
-        {tests.map(x => (
-
-          <div
-            className="card"
-            key={x[0]}
-          >
-
-            <b>
-
-              {x[0]}
-              {" • "}
-              {x[1]}
-
-            </b>
-
-
-            <small>
-              {x[2]}
-            </small>
-
-          </div>
-
-        ))}
-
-      </div>
-
-
-      <Btn onClick={done}>
-
-        Complete Baseline →
-
-      </Btn>
-
-    </section>
-
-  );
-
-}
-
-
-/* =========================================================
-   FITNESS PASSPORT
-========================================================= */
-
-function Passport({
-  p,
-  go
-}) {
-
-  const metrics = [
-
-    ["Strength", 72],
-
-    ["Endurance", 69],
-
-    ["Mobility", 54],
-
-    ["Stability", 61]
-
-  ];
-
-
-  return (
-
-    <section className="card">
-
-      <small>
-        FITNESS PASSPORT
-      </small>
-
-
-      <h2>
-        A measurable
-        starting point
-      </h2>
-
-
-      <div className="passport">
-
-        <div>
-
-          <div className="score">
-
-            <b>
-              {p.score}
-            </b>
-
-          </div>
-
-
-          <p>
-            Overall Fitness Score
-          </p>
-
-        </div>
-
-
-        <div>
-
-          {metrics.map(x => (
-
-            <div
-              className="metric"
-              key={x[0]}
-            >
-
-              <span>
-
-                {x[0]}
-
-                <b>
-                  {x[1]}
-                </b>
-
-              </span>
-
-
-              <div className="bar">
-
-                <i
-                  style={{
-                    width:
-                      x[1] + "%"
-                  }}
-                />
-
-              </div>
-
-            </div>
-
-          ))}
-
-        </div>
-
-      </div>
-
-
-      <div className="callout">
-
-        <b>
-          ⚡ AI focus area: Mobility
-        </b>
-
-        <br />
-
-        Next mission adapts to
-        your weakest area and
-        today's constraints.
-
-      </div>
-
-
-      <Btn
-        onClick={() =>
-          go("mission")
-        }
-      >
-
-        Generate My Move Mission →
-
-      </Btn>
-
-    </section>
-
-  );
-
-}
-
-
-/* =========================================================
-   MOVE MISSION
-========================================================= */
-
-function Mission({
-  p,
-  m,
-  go
-}) {
-
-  return (
-
-    <section className="card mission">
-
-      <small>
-        CONTEXT-AWARE ACTIVITY GENERATION
-      </small>
-
-
-      <h2>
-        ⚡ {m.title}
-      </h2>
-
-
-      <div className="chips">
-
-        <span>
-          {p.time}
-        </span>
-
-        <span>
-          {p.level}
-        </span>
-
-        <span>
-          {p.environment}
-        </span>
-
-        <span>
-          {p.equipment}
-        </span>
-
-      </div>
-
-
-      {m.items.map(x => (
-
-        <div
-          className="row big"
-          key={x[1]}
+    <nav className="bottom-navigation">
+      {items.map((item) => (
+        <button
+          key={item.id}
+          className={
+            page === item.id
+              ? "nav-item active"
+              : "nav-item"
+          }
+          onClick={() => setPage(item.id)}
         >
-
-          <b>
-
-            {x[0]}
-            {" • "}
-            {x[1]}
-
-          </b>
-
-
-          <em>
-            AI SELECTED
-          </em>
-
-        </div>
-
-      ))}
-
-
-      <Btn
-        onClick={() =>
-          go("verify")
-        }
-      >
-
-        Start AI Verification →
-
-      </Btn>
-
-    </section>
-
-  );
-
-}
-
-
-/* =========================================================
-   AI VERIFIER
-========================================================= */
-
-function Verifier({
-  done
-}) {
-
-  const video =
-    useRef(null);
-
-  const canvas =
-    useRef(null);
-
-  const land =
-    useRef(null);
-
-  const stream =
-    useRef(null);
-
-  const phase =
-    useRef("up");
-
-  const last =
-    useRef(0);
-
-  const running =
-    useRef(false);
-
-
-  const [run, setRun] =
-    useState(false);
-
-  const [reps, setReps] =
-    useState(0);
-
-  const [angleV, setAngleV] =
-    useState(180);
-
-  const [status, setStatus] =
-    useState("Camera is off");
-
-
-  function ang(a, b, c) {
-
-    const ab = [
-      a.x - b.x,
-      a.y - b.y
-    ];
-
-    const cb = [
-      c.x - b.x,
-      c.y - b.y
-    ];
-
-
-    const d =
-      ab[0] * cb[0] +
-      ab[1] * cb[1];
-
-
-    const mag =
-      Math.hypot(...ab) *
-      Math.hypot(...cb);
-
-
-    if (!mag) {
-      return 180;
-    }
-
-
-    return Math.round(
-
-      Math.acos(
-        Math.max(
-          -1,
-          Math.min(
-            1,
-            d / mag
-          )
-        )
-      ) *
-      180 /
-      Math.PI
-
-    );
-
-  }
-
-
-  async function start() {
-
-    try {
-
-      setStatus(
-        "Loading AI model…"
-      );
-
-
-      const v =
-        await FilesetResolver
-          .forVisionTasks(WASM);
-
-
-      try {
-
-        land.current =
-          await PoseLandmarker
-            .createFromOptions(
-              v,
-              {
-                baseOptions: {
-                  modelAssetPath: MODEL,
-                  delegate: "GPU"
-                },
-
-                runningMode: "VIDEO",
-
-                numPoses: 1
-              }
-            );
-
-      } catch {
-
-        land.current =
-          await PoseLandmarker
-            .createFromOptions(
-              v,
-              {
-                baseOptions: {
-                  modelAssetPath: MODEL,
-                  delegate: "CPU"
-                },
-
-                runningMode: "VIDEO",
-
-                numPoses: 1
-              }
-            );
-
-      }
-
-
-      stream.current =
-        await navigator
-          .mediaDevices
-          .getUserMedia({
-
-            video: {
-              facingMode: "user",
-
-              width: {
-                ideal: 960
-              },
-
-              height: {
-                ideal: 720
-              }
-
-            },
-
-            audio: false
-
-          });
-
-
-      video.current.srcObject =
-        stream.current;
-
-
-      await video.current.play();
-
-
-      running.current = true;
-
-      setRun(true);
-
-      setStatus(
-        "AI pose tracking active"
-      );
-
-
-      requestAnimationFrame(
-        loop
-      );
-
-    } catch (error) {
-
-      console.error(error);
-
-      setStatus(
-        "Camera error. Allow camera permission and try again."
-      );
-
-    }
-
-  }
-
-
-  function loop() {
-
-    if (!running.current) {
-      return;
-    }
-
-
-    if (
-      !video.current ||
-      video.current.readyState < 2
-    ) {
-
-      requestAnimationFrame(loop);
-
-      return;
-
-    }
-
-
-    const now =
-      performance.now();
-
-
-    if (
-      now - last.current < 80
-    ) {
-
-      requestAnimationFrame(loop);
-
-      return;
-
-    }
-
-
-    last.current = now;
-
-
-    const result =
-      land.current.detectForVideo(
-        video.current,
-        now
-      );
-
-
-    const c =
-      canvas.current;
-
-
-    c.width =
-      video.current.videoWidth;
-
-    c.height =
-      video.current.videoHeight;
-
-
-    const ctx =
-      c.getContext("2d");
-
-
-    ctx.clearRect(
-      0,
-      0,
-      c.width,
-      c.height
-    );
-
-
-    if (
-      result.landmarks &&
-      result.landmarks.length
-    ) {
-
-      const p =
-        result.landmarks[0];
-
-
-      const left =
-        ang(
-          p[23],
-          p[25],
-          p[27]
-        );
-
-
-      const right =
-        ang(
-          p[24],
-          p[26],
-          p[28]
-        );
-
-
-      const knee =
-        (left + right) / 2;
-
-
-      setAngleV(
-        Math.round(knee)
-      );
-
-
-      const drawing =
-        new DrawingUtils(ctx);
-
-
-      drawing.drawLandmarks(
-        p,
-        {
-          radius: 4
-        }
-      );
-
-
-      drawing.drawConnectors(
-        p,
-        PoseLandmarker.POSE_CONNECTIONS,
-        {
-          lineWidth: 3
-        }
-      );
-
-
-      if (
-        knee < 105 &&
-        phase.current === "up"
-      ) {
-
-        phase.current = "down";
-
-      }
-
-
-      if (
-        knee > 160 &&
-        phase.current === "down"
-      ) {
-
-        phase.current = "up";
-
-
-        setReps(
-          r => r + 1
-        );
-
-      }
-
-    }
-
-
-    requestAnimationFrame(
-      loop
-    );
-
-  }
-
-
-  function stop() {
-
-    running.current = false;
-
-
-    stream.current
-      ?.getTracks()
-      .forEach(
-        t => t.stop()
-      );
-
-
-    land.current
-      ?.close?.();
-
-
-    setRun(false);
-
-    setStatus(
-      "Camera is off"
-    );
-
-  }
-
-
-  useEffect(() => {
-
-    return () => {
-
-      running.current = false;
-
-      stream.current
-        ?.getTracks()
-        .forEach(
-          t => t.stop()
-        );
-
-    };
-
-  }, []);
-
-
-  return (
-
-    <section className="card">
-
-      <small>
-        REAL-TIME COMPUTER VISION
-      </small>
-
-
-      <h2>
-        AI Squat Verification
-      </h2>
-
-
-      <p>
-
-        ATHLORA uses browser-based
-        pose estimation to demonstrate
-        real-time activity verification.
-
-      </p>
-
-
-      <div className="camera">
-
-        <video
-          ref={video}
-          playsInline
-          muted
-        />
-
-
-        <canvas
-          ref={canvas}
-        />
-
-
-        {!run && (
-
-          <div className="placeholder">
-
-            📷
-
-            <b>
-              Camera ready
-            </b>
-
-            <small>
-              Allow camera access
-            </small>
-
-          </div>
-
-        )}
-
-      </div>
-
-
-      <div className="stats">
-
-        <Stat
-          a="Squat Reps"
-          b={`${reps} / 8`}
-          c="AI detected"
-        />
-
-
-        <Stat
-          a="Knee Angle"
-          b={`${angleV}°`}
-          c="movement depth"
-        />
-
-
-        <Stat
-          a="AI Status"
-          b={run ? "ACTIVE" : "OFF"}
-          c={status}
-        />
-
-      </div>
-
-
-      <Btn
-        onClick={
-          run
-            ? stop
-            : start
-        }
-      >
-
-        {run
-          ? "Stop Camera"
-          : "Start Camera + AI"}
-
-      </Btn>
-
-
-      {reps >= 8 && (
-
-        <Btn
-          onClick={() => {
-
-            stop();
-
-            done();
-
-          }}
-        >
-
-          Complete Mission ✓
-
-        </Btn>
-
-      )}
-
-    </section>
-
-  );
-
-}
-
-
-/* =========================================================
-   COMPLETE
-========================================================= */
-
-function Complete({
-  p,
-  go
-}) {
-
-  return (
-
-    <section className="card center">
-
-      <div className="celebrate">
-        🎉
-      </div>
-
-
-      <small>
-        VERIFIED ACTIVITY
-      </small>
-
-
-      <h2>
-        Mission Complete
-      </h2>
-
-
-      <p>
-
-        Your movement was verified
-        through the AI camera detector.
-
-      </p>
-
-
-      <div className="stats">
-
-        <Stat
-          a="Fitness XP"
-          b="+80"
-          c="earned"
-        />
-
-
-        <Stat
-          a="Growth Index"
-          b={`+${p.fgi}%`}
-          c="personal improvement"
-        />
-
-
-        <Stat
-          a="Consistency"
-          b={`${p.streak}/7`}
-          c="active days"
-        />
-
-      </div>
-
-
-      <div className="callout">
-
-        <b>
-          Keep building the habit.
-        </b>
-
-        <br />
-
-        ATHLORA rewards improvement
-        and returning after inactivity.
-
-      </div>
-
-
-      <Btn
-        onClick={() =>
-          go("dashboard")
-        }
-      >
-
-        Back to Dashboard →
-
-      </Btn>
-
-    </section>
-
-  );
-
-}
-
-
-/* =========================================================
-   CAMPUS
-========================================================= */
-
-function Campus() {
-
-  const leaders = [
-
-    [
-      "#1 • Hostel A",
-      "8,420 XP",
-      "+14%"
-    ],
-
-    [
-      "#2 • Hostel B",
-      "7,980 XP",
-      "+11%"
-    ],
-
-    [
-      "#3 • Your Group",
-      "7,610 XP",
-      "+18%"
-    ]
-
-  ];
-
-
-  return (
-
-    <section className="card">
-
-      <small>
-        CAMPUS FITNESS LAYER
-      </small>
-
-
-      <h2>
-        Make improvement collective.
-      </h2>
-
-
-      <p>
-
-        Reward participation and
-        personal improvement—not
-        only raw athletic performance.
-
-      </p>
-
-
-      <div className="stats">
-
-        <Stat
-          a="Campus Fitness Index"
-          b="74"
-          c="▲ 8% this month"
-        />
-
-
-        <Stat
-          a="Active Students"
-          b="68%"
-          c="participating cohort"
-        />
-
-
-        <Stat
-          a="Missions"
-          b="1,842"
-          c="this week"
-        />
-
-      </div>
-
-
-      <h3>
-        🏆 7-Day Movement Challenge
-      </h3>
-
-
-      {leaders.map(x => (
-
-        <div
-          className="leader"
-          key={x[0]}
-        >
-
-          <b>
-            {x[0]}
-          </b>
-
-
-          <b>
-            {x[1]}
-          </b>
-
-
-          <span>
-            {x[2]}
+          <span className="nav-icon">
+            {item.icon}
           </span>
 
-        </div>
-
+          <span className="nav-label">
+            {item.label}
+          </span>
+        </button>
       ))}
-
-
-      <div className="callout">
-
-        <b>
-          The ATHLORA difference
-        </b>
-
-
-        <p>
-
-          We don't measure who
-          is the fittest.
-
-          We measure who is improving.
-
-        </p>
-
-      </div>
-
-    </section>
-
+    </nav>
   );
-
 }
 
-
-/* =========================================================
-   START APPLICATION
-========================================================= */
-
-createRoot(
-  document.getElementById("root")
-).render(
-  <App />
+createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
 );
