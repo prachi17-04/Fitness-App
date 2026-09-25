@@ -247,7 +247,7 @@ function App() {
           <div>
 
             <small>
-              SMART INDIA HACKATHON • STUDENT INNOVATION
+              The Fitness Opportunity Engine..
             </small>
 
             <h1>
