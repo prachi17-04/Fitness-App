@@ -480,7 +480,7 @@ function Dashboard({
       <div className="hero">
 
 
-        <section className="card">
+        
 
           <small>
             CONTEXT-AWARE FITNESS
@@ -679,7 +679,7 @@ function Stat({
 
   return (
 
-    <section className="card stat">
+    
 
       <small>
         {a}
@@ -762,7 +762,7 @@ function Setup({
 
   return (
 
-    <section className="card">
+    
 
       <small>
         PERSONALIZATION
@@ -973,7 +973,7 @@ function Passport({
 
   return (
 
-    <section className="card">
+    
 
       <small>
         FITNESS PASSPORT
