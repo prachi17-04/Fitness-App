@@ -344,8 +344,8 @@ function App() {
 
         <footer>
 
-          Prototype data is illustrative.
-          ATHLORA is not a medical diagnostic system.
+          Fitness Becomes a Daily Behaviour, Not a Scheduled Workout..
+          
 
         </footer>
 
@@ -432,35 +432,6 @@ function Sidebar({
 
       </nav>
 
-
-      <div className="sidebox">
-
-        TODAY'S CONSISTENCY
-
-        <br />
-
-        <b>
-          4 / 5 active days
-        </b>
-
-
-        <div className="bar">
-
-          <i
-            style={{
-              width: "80%"
-            }}
-          />
-
-        </div>
-
-      </div>
-
-    </aside>
-
-  );
-
-}
 
 
 /* =========================================================
