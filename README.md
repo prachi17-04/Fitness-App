@@ -36,3 +36,11 @@ Assess → Find Opportunity → Move → Verify → Improve
 - Campus Challenge
 - LocalStorage persistence
 
+## Run Locally
+
+Install Node.js.
+
+Then run:
+
+```bash
+npm install
