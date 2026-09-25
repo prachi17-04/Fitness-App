@@ -13,7 +13,7 @@ import {
   DrawingUtils
 } from "@mediapipe/tasks-vision";
 
-import "./styles.css";
+import "styles.css";
 
 
 /* =========================================================
