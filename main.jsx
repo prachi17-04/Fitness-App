@@ -13,11 +13,11 @@ import {
   DrawingUtils
 } from "@mediapipe/tasks-vision";
 
-import "./style.css";
+import "./styles.css";
 
 
 /* =========================================================
-   MEDIAPIPE CONFIGURATION
+   MEDIAPIPE
 ========================================================= */
 
 const MODEL =
@@ -28,7 +28,7 @@ const WASM =
 
 
 /* =========================================================
-   DEFAULT USER PROFILE
+   DEFAULT PROFILE
 ========================================================= */
 
 const DEFAULT = {
@@ -47,15 +47,13 @@ const DEFAULT = {
 
 
 /* =========================================================
-   MOVE MISSION ENGINE
+   MISSION ENGINE
 ========================================================= */
 
 function mission(p) {
 
   const t = parseInt(p.time) || 5;
 
-
-  /* Classroom Mode */
 
   if (p.environment === "Classroom") {
 
@@ -74,8 +72,6 @@ function mission(p) {
   }
 
 
-  /* 3 Minute Mission */
-
   if (t <= 3) {
 
     return {
@@ -92,8 +88,6 @@ function mission(p) {
     };
   }
 
-
-  /* Strength Mission */
 
   if (
     t >= 10 &&
@@ -115,8 +109,6 @@ function mission(p) {
     };
   }
 
-
-  /* Default Mission */
 
   return {
 
@@ -171,8 +163,6 @@ function App() {
     );
 
 
-  /* Save profile */
-
   useEffect(() => {
 
     localStorage.setItem(
@@ -182,8 +172,6 @@ function App() {
 
   }, [p]);
 
-
-  /* Save setup */
 
   const save = () => {
 
@@ -195,8 +183,6 @@ function App() {
 
   };
 
-
-  /* Complete baseline */
 
   const baseline = () => {
 
@@ -210,8 +196,6 @@ function App() {
   };
 
 
-  /* Complete mission */
-
   const done = () => {
 
     setP(x => ({
@@ -221,7 +205,7 @@ function App() {
 
       fgi: x.fgi + 2,
 
-      streak: 5
+      streak: Math.min(x.streak + 1, 7)
 
     }));
 
@@ -234,34 +218,44 @@ function App() {
 
     <div className="app">
 
-      <Sidebar
-        page={page}
-        setPage={setPage}
-      />
+      {/* =================================================
+          TOP HEADER
+      ================================================= */}
 
+      <header className="top-header">
 
-      <main className="main">
+        <div>
 
-        <header>
+          <div className="brand">
 
-          <div>
-
-            <small>
-              The Fitness Opportunity Engine..
-            </small>
-
-            <h1>
-              Move more. Improve daily.
-            </h1>
+            ATHLORA
+            <span>.</span>
 
           </div>
 
+          <small>
+            Fitness Made Easy
+          </small>
 
-          <span>
-            ● ATHLORA FIT
-          </span>
+        </div>
 
-        </header>
+
+        <div className="header-status">
+
+          <span className="online-dot"></span>
+
+          ATHLORA FIT
+
+        </div>
+
+      </header>
+
+
+      {/* =================================================
+          MAIN CONTENT
+      ================================================= */}
+
+      <main className="main-content">
 
 
         {page === "dashboard" && (
@@ -344,12 +338,22 @@ function App() {
 
         <footer>
 
-          Fitness Becomes a Daily Behaviour, Not a Scheduled Workout..
+          ATHLORA-Fitness Becomes a Daily Behaviour, Not a Scheduled Workout
           
 
         </footer>
 
       </main>
+
+
+      {/* =================================================
+          BOTTOM NAVIGATION
+      ================================================= */}
+
+      <BottomNavigation
+        page={page}
+        setPage={setPage}
+      />
 
     </div>
 
@@ -359,108 +363,109 @@ function App() {
 
 
 /* =========================================================
-   SIDEBAR
+   BOTTOM NAVIGATION
 ========================================================= */
 
-function Sidebar({
+function BottomNavigation({
   page,
   setPage
 }) {
 
   const items = [
 
-    ["dashboard", "⌂ Dashboard"],
+    {
+      id: "dashboard",
+      icon: "⌂",
+      label: "Dashboard"
+    },
 
-    ["setup", "◉ My Setup"],
+    {
+      id: "setup",
+      icon: "◉",
+      label: "My Setup"
+    },
 
-    ["baseline", "◌ AI Baseline"],
+    {
+      id: "baseline",
+      icon: "◌",
+      label: "AI Baseline"
+    },
 
-    ["passport", "◎ Fitness Passport"],
+    {
+      id: "passport",
+      icon: "◎",
+      label: "Passport"
+    },
 
-    ["mission", "⚡ Move Mission"],
+    {
+      id: "mission",
+      icon: "⚡",
+      label: "Mission"
+    },
 
-    ["verify", "◈ AI Verification"],
+    {
+      id: "verify",
+      icon: "◈",
+      label: "Verify"
+    },
 
-    ["campus", "♧ Campus Challenge"]
+    {
+      id: "campus",
+      icon: "♧",
+      label: "Campus"
+    }
 
   ];
 
 
   return (
 
-    <aside>
+    <nav className="bottom-nav">
 
-      <b className="logo">
+      <div className="bottom-nav-inner">
 
-        ATHLORA
-
-        <span>.</span>
-
-      </b>
-
-
-      <small>
-        FIT • SMART CAMPUS FITNESS
-      </small>
-
-
-      <nav>
-
-        {items.map(([id, name]) => (
+        {items.map(item => (
 
           <button
 
+            key={item.id}
+
             className={
-              page === id
-                ? "nav active"
-                : "nav"
+              page === item.id
+                ? "bottom-item active"
+                : "bottom-item"
             }
 
             onClick={() =>
-              setPage(id)
+              setPage(item.id)
             }
-
-            key={id}
 
           >
 
-            {name}
+            <span className="bottom-icon">
+
+              {item.icon}
+
+            </span>
+
+
+            <span className="bottom-label">
+
+              {item.label}
+
+            </span>
 
           </button>
 
         ))}
 
-      </nav>
+      </div>
 
+    </nav>
 
+  );
 
-/* =========================================================
-   BUTTON
-========================================================= */
-
-const Btn = ({
-  children,
-  onClick,
-  secondary = false
-}) => (
-
-  <button
-
-    className={
-      secondary
-        ? "secondary"
-        : "primary"
-    }
-
-    onClick={onClick}
-
-  >
-
-    {children}
-
-  </button>
-
-);
+}
 
 
 /* =========================================================
@@ -473,14 +478,114 @@ function Dashboard({
   go
 }) {
 
+  const consistency =
+    Math.min(p.streak, 7);
+
+  const consistencyPercent =
+    (consistency / 7) * 100;
+
+
   return (
 
-    <>
+    <section className="dashboard">
+
+
+      {/* =================================================
+          TODAY'S CONSISTENCY
+          ONLY EXISTS ON DASHBOARD
+      ================================================= */}
+
+      <section className="consistency-card">
+
+        <div className="consistency-header">
+
+          <div>
+
+            <small>
+              TODAY'S CONSISTENCY
+            </small>
+
+            <h2>
+              {consistency} / 7
+            </h2>
+
+            <p>
+              active days this week
+            </p>
+
+          </div>
+
+
+          <div className="consistency-icon">
+
+            {consistency >= 5
+              ? "🔥"
+              : "⚡"}
+
+          </div>
+
+        </div>
+
+
+        <div className="consistency-bar">
+
+          <div
+            style={{
+              width:
+                `${consistencyPercent}%`
+            }}
+          />
+
+        </div>
+
+
+        <div className="consistency-days">
+
+          {[
+            "M",
+            "T",
+            "W",
+            "T",
+            "F",
+            "S",
+            "S"
+          ].map((day, index) => (
+
+            <div
+              className={
+                index < consistency
+                  ? "day active"
+                  : "day"
+              }
+              key={`${day}-${index}`}
+            >
+
+              <span>
+                {index < consistency
+                  ? "✓"
+                  : ""}
+              </span>
+
+              <small>
+                {day}
+              </small>
+
+            </div>
+
+          ))}
+
+        </div>
+
+      </section>
+
+
+      {/* =================================================
+          CONTEXT + LIVE MISSION
+      ================================================= */}
 
       <div className="hero">
 
-
-        
+        <section className="card context-card">
 
           <small>
             CONTEXT-AWARE FITNESS
@@ -488,8 +593,8 @@ function Dashboard({
 
 
           <h2>
-            Fitness that fits into
-            a student's day.
+            Fitness that fits
+            into a student's day.
           </h2>
 
 
@@ -511,30 +616,34 @@ function Dashboard({
           </p>
 
 
-          <Btn
-            onClick={() =>
-              go("setup")
-            }
-          >
+          <div className="button-group">
 
-            Build My Fitness Profile →
+            <Btn
+              onClick={() =>
+                go("setup")
+              }
+            >
 
-          </Btn>
+              Build My Fitness Profile →
+
+            </Btn>
 
 
-          <Btn
+            <Btn
 
-            secondary
+              secondary
 
-            onClick={() =>
-              go("mission")
-            }
+              onClick={() =>
+                go("mission")
+              }
 
-          >
+            >
 
-            I Have 5 Minutes
+              I Have 5 Minutes
 
-          </Btn>
+            </Btn>
+
+          </div>
 
         </section>
 
@@ -613,6 +722,10 @@ function Dashboard({
       </div>
 
 
+      {/* =================================================
+          DASHBOARD STATS
+      ================================================= */}
+
       <div className="stats">
 
         <Stat
@@ -630,13 +743,17 @@ function Dashboard({
 
 
         <Stat
-          a="Consistency"
-          b={`${p.streak}/5`}
-          c="active days"
+          a="XP"
+          b={p.xp}
+          c="earned through movement"
         />
 
       </div>
 
+
+      {/* =================================================
+          CORE IDEA
+      ================================================= */}
 
       <div className="callout">
 
@@ -660,7 +777,7 @@ function Dashboard({
 
       </div>
 
-    </>
+    </section>
 
   );
 
@@ -668,7 +785,40 @@ function Dashboard({
 
 
 /* =========================================================
-   STAT COMPONENT
+   BUTTON
+========================================================= */
+
+function Btn({
+  children,
+  onClick,
+  secondary = false
+}) {
+
+  return (
+
+    <button
+
+      className={
+        secondary
+          ? "secondary"
+          : "primary"
+      }
+
+      onClick={onClick}
+
+    >
+
+      {children}
+
+    </button>
+
+  );
+
+}
+
+
+/* =========================================================
+   STAT
 ========================================================= */
 
 function Stat({
@@ -679,7 +829,7 @@ function Stat({
 
   return (
 
-    
+    <section className="card stat">
 
       <small>
         {a}
@@ -703,7 +853,7 @@ function Stat({
 
 
 /* =========================================================
-   SETUP / CONTEXT ENGINE
+   SETUP
 ========================================================= */
 
 function Setup({
@@ -762,7 +912,7 @@ function Setup({
 
   return (
 
-    
+    <section className="card">
 
       <small>
         PERSONALIZATION
@@ -900,9 +1050,8 @@ function Baseline({
         A short baseline creates
         the student's starting profile.
 
-        The camera module below is
-        already wired for the first
-        real CV feature: squats.
+        The camera module can later
+        collect these values automatically.
 
       </p>
 
@@ -973,7 +1122,7 @@ function Passport({
 
   return (
 
-    
+    <section className="card">
 
       <small>
         FITNESS PASSPORT
@@ -1030,7 +1179,8 @@ function Passport({
 
                 <i
                   style={{
-                    width: x[1] + "%"
+                    width:
+                      x[1] + "%"
                   }}
                 />
 
@@ -1165,7 +1315,7 @@ function Mission({
 
 
 /* =========================================================
-   AI CAMERA VERIFIER
+   AI VERIFIER
 ========================================================= */
 
 function Verifier({
@@ -1207,10 +1357,6 @@ function Verifier({
     useState("Camera is off");
 
 
-  /* =====================================================
-     ANGLE CALCULATION
-  ===================================================== */
-
   function ang(a, b, c) {
 
     const ab = [
@@ -1230,12 +1376,8 @@ function Verifier({
 
 
     const mag =
-      Math.hypot(
-        ...ab
-      ) *
-      Math.hypot(
-        ...cb
-      );
+      Math.hypot(...ab) *
+      Math.hypot(...cb);
 
 
     if (!mag) {
@@ -1253,20 +1395,14 @@ function Verifier({
             d / mag
           )
         )
-      )
-      *
-      180
-      /
+      ) *
+      180 /
       Math.PI
 
     );
 
   }
 
-
-  /* =====================================================
-     START CAMERA
-  ===================================================== */
 
   async function start() {
 
@@ -1282,27 +1418,43 @@ function Verifier({
           .forVisionTasks(WASM);
 
 
-      land.current =
-        await PoseLandmarker
-          .createFromOptions(
-            v,
-            {
-              baseOptions: {
-                modelAssetPath: MODEL,
-                delegate: "GPU"
-              },
+      try {
 
-              runningMode: "VIDEO",
+        land.current =
+          await PoseLandmarker
+            .createFromOptions(
+              v,
+              {
+                baseOptions: {
+                  modelAssetPath: MODEL,
+                  delegate: "GPU"
+                },
 
-              numPoses: 1,
+                runningMode: "VIDEO",
 
-              minPoseDetectionConfidence: 0.5,
+                numPoses: 1
+              }
+            );
 
-              minPosePresenceConfidence: 0.5,
+      } catch {
 
-              minTrackingConfidence: 0.5
-            }
-          );
+        land.current =
+          await PoseLandmarker
+            .createFromOptions(
+              v,
+              {
+                baseOptions: {
+                  modelAssetPath: MODEL,
+                  delegate: "CPU"
+                },
+
+                runningMode: "VIDEO",
+
+                numPoses: 1
+              }
+            );
+
+      }
 
 
       stream.current =
@@ -1320,6 +1472,7 @@ function Verifier({
               height: {
                 ideal: 720
               }
+
             },
 
             audio: false
@@ -1347,22 +1500,18 @@ function Verifier({
         loop
       );
 
-    } catch (e) {
+    } catch (error) {
 
-      console.error(e);
+      console.error(error);
 
       setStatus(
-        "Camera/model error. Use localhost or HTTPS and allow camera access."
+        "Camera error. Allow camera permission and try again."
       );
 
     }
 
   }
 
-
-  /* =====================================================
-     POSE DETECTION LOOP
-  ===================================================== */
 
   function loop() {
 
@@ -1376,9 +1525,7 @@ function Verifier({
       video.current.readyState < 2
     ) {
 
-      requestAnimationFrame(
-        loop
-      );
+      requestAnimationFrame(loop);
 
       return;
 
@@ -1393,9 +1540,7 @@ function Verifier({
       now - last.current < 80
     ) {
 
-      requestAnimationFrame(
-        loop
-      );
+      requestAnimationFrame(loop);
 
       return;
 
@@ -1405,7 +1550,7 @@ function Verifier({
     last.current = now;
 
 
-    const r =
+    const result =
       land.current.detectForVideo(
         video.current,
         now
@@ -1436,12 +1581,12 @@ function Verifier({
 
 
     if (
-      r.landmarks &&
-      r.landmarks.length
+      result.landmarks &&
+      result.landmarks.length
     ) {
 
       const p =
-        r.landmarks[0];
+        result.landmarks[0];
 
 
       const left =
@@ -1464,7 +1609,9 @@ function Verifier({
         (left + right) / 2;
 
 
-      setAngleV(knee);
+      setAngleV(
+        Math.round(knee)
+      );
 
 
       const drawing =
@@ -1488,32 +1635,26 @@ function Verifier({
       );
 
 
-      /* Squat starts */
-
       if (
         knee < 105 &&
         phase.current === "up"
       ) {
 
-        phase.current =
-          "down";
+        phase.current = "down";
 
       }
 
-
-      /* Squat completed */
 
       if (
         knee > 160 &&
         phase.current === "down"
       ) {
 
-        phase.current =
-          "up";
+        phase.current = "up";
 
 
         setReps(
-          x => x + 1
+          r => r + 1
         );
 
       }
@@ -1528,10 +1669,6 @@ function Verifier({
   }
 
 
-  /* =====================================================
-     STOP CAMERA
-  ===================================================== */
-
   function stop() {
 
     running.current = false;
@@ -1540,8 +1677,7 @@ function Verifier({
     stream.current
       ?.getTracks()
       .forEach(
-        track =>
-          track.stop()
+        t => t.stop()
       );
 
 
@@ -1558,14 +1694,18 @@ function Verifier({
   }
 
 
-  /* =====================================================
-     CLEANUP
-  ===================================================== */
-
   useEffect(() => {
 
     return () => {
-      stop();
+
+      running.current = false;
+
+      stream.current
+        ?.getTracks()
+        .forEach(
+          t => t.stop()
+        );
+
     };
 
   }, []);
@@ -1587,13 +1727,9 @@ function Verifier({
 
       <p>
 
-        The browser camera is
-        processed with MediaPipe
-        Pose Landmarker.
-
-        A simple knee-angle
-        state machine counts
-        squat repetitions.
+        ATHLORA uses browser-based
+        pose estimation to demonstrate
+        real-time activity verification.
 
       </p>
 
@@ -1624,7 +1760,6 @@ function Verifier({
 
             <small>
               Allow camera access
-              to begin
             </small>
 
           </div>
@@ -1637,23 +1772,23 @@ function Verifier({
       <div className="stats">
 
         <Stat
-          a="Reps"
+          a="Squat Reps"
           b={`${reps} / 8`}
-          c="detected"
+          c="AI detected"
         />
 
 
         <Stat
-          a="Knee angle"
+          a="Knee Angle"
           b={`${angleV}°`}
-          c="lower = squat depth"
+          c="movement depth"
         />
 
 
         <Stat
-          a="AI status"
-          b={status}
-          c="on-device pose tracking"
+          a="AI Status"
+          b={run ? "ACTIVE" : "OFF"}
+          c={status}
         />
 
       </div>
@@ -1692,16 +1827,6 @@ function Verifier({
 
       )}
 
-
-      <p className="tip">
-
-        For the demo:
-        full body visible,
-        good lighting,
-        side/three-quarter view.
-
-      </p>
-
     </section>
 
   );
@@ -1710,7 +1835,7 @@ function Verifier({
 
 
 /* =========================================================
-   COMPLETION SCREEN
+   COMPLETE
 ========================================================= */
 
 function Complete({
@@ -1720,9 +1845,7 @@ function Complete({
 
   return (
 
-    <section
-      className="card mission center"
-    >
+    <section className="card center">
 
       <div className="celebrate">
         🎉
@@ -1741,8 +1864,8 @@ function Complete({
 
       <p>
 
-        Movement was verified
-        through the camera detector.
+        Your movement was verified
+        through the AI camera detector.
 
       </p>
 
@@ -1765,7 +1888,7 @@ function Complete({
 
         <Stat
           a="Consistency"
-          b={`${p.streak}/5`}
+          b={`${p.streak}/7`}
           c="active days"
         />
 
@@ -1775,26 +1898,24 @@ function Complete({
       <div className="callout">
 
         <b>
-          Comeback Mode
+          Keep building the habit.
         </b>
 
         <br />
 
-        After inactivity,
-        ATHLORA can reduce the
-        next mission to make
-        restarting achievable.
+        ATHLORA rewards improvement
+        and returning after inactivity.
 
       </div>
 
 
       <Btn
         onClick={() =>
-          go("campus")
+          go("dashboard")
         }
       >
 
-        View Campus Challenge →
+        Back to Dashboard →
 
       </Btn>
 
@@ -1806,7 +1927,7 @@ function Complete({
 
 
 /* =========================================================
-   CAMPUS CHALLENGE
+   CAMPUS
 ========================================================= */
 
 function Campus() {
@@ -1939,7 +2060,7 @@ function Campus() {
 
 
 /* =========================================================
-   START REACT
+   START APPLICATION
 ========================================================= */
 
 createRoot(
